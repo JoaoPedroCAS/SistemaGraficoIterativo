@@ -3,130 +3,112 @@ import matplotlib
 import mplcursors
 import numpy as np
 import math
-
-
+import os
+from matplotlib.patches import Polygon
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import PySimpleGUI as sg
 matplotlib.use('TkAgg')
 
-lista_operacoes= ["Translação","Cisalhamento","Escala","Rotação","Reflexão em X","Reflexão em Y"]
+
+lista_operacoes= ["Translação","Cisalhamento em X","Cisalhamento em Y","Escala","Rotação","Reflexão em X","Reflexão em Y"]
+tkcanvas = None
+def defineAx():
+    ax.set_xlabel('X-axis')
+    ax.set_ylabel('Y-axis')
+    ax.set_title('Interactive 2D Cartesian Plane')
+
+    ax.axhline(0, color='black', linewidth=0.8)
+    ax.axvline(0, color='black', linewidth=0.8)
+    ax.plot()
 
 
-def set_layout(opcao):
-    #print(opcao)
-
-    left_column = [
-        [sg.Canvas(key='-CANVAS-')]
-    ]
-
-    # Define the right column
-    right_column = [
-        [sg.Text('Enter the name of the object you want to load (cube, square, circle, etc.):'),  sg.InputText(), sg.Button('Ok')],
-        [sg.Text("Escolha a operação que deseja realizar               "), sg.Combo(lista_operacoes)],
-        [sg.Text("", key='campo1'), sg.InputText()],
-        [sg.Text("", key='campo2'), sg.InputText()]
+def update(vertex, matrix):
+    vertex = ApplyTransformation(vertex,matrix)
+    tkcanvas.get_tk_widget().pack_forget()
+    fig, ax= plot_2d_object(vertex, 'r')
+    defineAx()
+    draw_figure(window['-CANVAS-'].TKCanvas, fig)
 
 
-    ]
 
-    # Create the layout with two columns
-    layout = [
-        [
-            sg.Column(left_column, element_justification='l'),  # 'l' for left justification
-            sg.Column(right_column, element_justification='l')  # 'r' for right justification
-        ],
-        [sg.Button('Button 5')]  # Button outside the columns
-    ]
-
-    return layout
-
+def read_2d_object(file_name):
+    file = open(file_name, 'r')
+    lines = file.readlines()
+    file.close()
+    vertex = []
     
+    for line in lines:
+        if line.startswith('v '):
+            line = line.split()
+            x,y = float(line[1]), float(line[2])
+            vertex.append((x,y))
+    return vertex
 
-def verificaOpcao(opcao):
-    texto = []
-    if opcao == "Translação":
-        texto.append("Digite o valor de tx")
-        texto.append("Digite o valor de ty")
-        return texto
-    elif opcao == "Cisalhamento":
-        texto.append("Digite o valor de shx")
-        texto.append("Digite o valor de ty")
-        return texto	
-    elif opcao == "Escala": 
-        texto.append("Digite o valor de sx")
-        texto.append("Digite o valor de sy")
-        return texto
-    elif opcao == "Rotação":
-        texto.append("Digite o valor de teta")
-        texto.append("CAMPO VAZIO")
-        return texto
-    elif opcao == "Reflexão em X": 
-        texto.append("CAMPO VAZIO")
-        texto.append("CAMPO VAZIO")
-        return texto
-    elif opcao == "Reflexão em Y": 
-        texto.append("CAMPO VAZIO")
-        texto.append("CAMPO VAZIO")
-        return texto
-    
-        
+def plot_2d_object(vertex, color):
 
-def tranlacao (atual,tx,ty):
+
+    polygon = Polygon(vertex, closed=True, edgecolor=color, facecolor=color, alpha=0.5)
+    ax.add_patch(polygon)
+
+    return fig, ax
+ 
+def tranlacao (tx,ty):
     Mtranslacao = np.array([[1,0,tx],
                            [0,1,ty],
                            [0,0,1]])
-    nova = atual.dot(Mtranslacao)
-    return nova
+    return Mtranslacao
 
-def cisalhamentoX (atual,shx):
+def cisalhamentoX (shx):
     McisalhamentoX = np.array([[1,shx,0],
                                [0,1,0],
                                [0,0,1]])
-    nova = atual.dot(McisalhamentoX)
-    return nova
+    return McisalhamentoX
 
-def cisalhamentoY (atual,shy):
+def cisalhamentoY (shy):
     McisalhamentoY = np.array([[1,shy,0],
                                [0,1,0],
                                [0,0,1]])
-    nova = atual.dot(McisalhamentoY)
-    return nova
+    return McisalhamentoY
 
-def escala (atual,sx,sy):
+def escala (sx,sy):
     Mescala = np.array([[sx,0,0],
                         [0,sy,0],
                         [0,0,1]])
-    nova = atual.dot(Mescala)
-    return nova
+    return Mescala
 
-def rotacao (atual,teta):
+def rotacao (teta):
     Mrotacao = np.array([[math.cos(teta), (math.sin(teta) * -1),0],
                             [math.sin(teta), math.cos(teta),0],
                             [0,0,1]])
-    nova = atual.dot(Mrotacao)
-    return nova
+    return Mrotacao
 
-def reflexaoX (atual):
+def reflexaoX ():
     MreflexaoX = np.array([[-1,0,0],
                            [0,1,0],
                            [0,0,1]])
-    nova = atual.dot(MreflexaoX)
-    return nova
+    return MreflexaoX
 
-def reflexaoY (atual):
+def reflexaoY ():
     MreflexaoY = np.array([[1,0,0],
                            [0,-1,0],
                            [0,0,1]])
-    nova = atual.dot(MreflexaoY)
-    return nova
+    return MreflexaoY
 
+def ApplyTransformation(vertex,matrix):
+    for i in range(len(vertex)):
+        point = np.array([vertex[i][0], vertex[i][1], 1])
+        transformed_point = np.dot(matrix, point)
+        vertex[i] = (transformed_point[0], transformed_point[1])
+    return vertex
 
 
 def draw_figure(canvas, figure):
+   global tkcanvas
    tkcanvas = FigureCanvasTkAgg(figure, canvas)
    tkcanvas.draw()
    tkcanvas.get_tk_widget().pack(side='top', fill='both', expand=1)
-   return tkcanvas
+
+
 
 class MouseNavigation:
     def __init__(self, ax):
@@ -164,72 +146,139 @@ class MouseNavigation:
         plt.draw()
 
 # Create a figure and axis
+
+
+
+sg.theme('DarkAmber')   # Add a touch of color
+# All the stuff inside your window.
+layout = [ 
+            [sg.Text('Enter the name of the object you want to load (triangle, square, cross):'), sg.InputText()],
+            [sg.Button('Ok'), sg.Button('Cancel')] ]
+
+# Create the Window
+window = sg.Window('Window Title', layout)
+# Event Loop to process "events" and get the "values" of the inputs
+while True:
+    event, values = window.read()
+    if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
+        sg.popup('Nenhum objeto foi carregado. Inicie novamente o programa.')
+        exit()
+
+    chosen_object = values[0]
+    path = os.path.dirname(os.path.abspath(__file__))   #Obtem a pasta atual
+    path = path + "\\" + chosen_object + ".obj"
+
+    
+    try:
+        vertex = read_2d_object(path)
+        sg.popup('Object loaded succefully!')
+        break
+    except FileNotFoundError:
+        print("Object not found. Please try again.")
+        sg.popup('Object not found. Please try again.')
+
+window.close()
+
+
+###################### Definições da janela ######################
+
 fig, ax = plt.subplots()
 
-# Initial position of the point
-initial_x = 0.5
-initial_y = 0.5
-
-# Plot the initial point
-point, = ax.plot(initial_x, initial_y, marker='o', color='red', markersize=10)
-
-# Set labels and title
-ax.set_xlabel('X-axis')
-ax.set_ylabel('Y-axis')
-ax.set_title('Interactive 2D Cartesian Plane')
-
-# Enable cursor interaction
 cursor = mplcursors.cursor(hover=True)
 
-# Create an instance of MouseNavigation and connect events
+
 mouse_nav = MouseNavigation(ax)
 fig.canvas.mpl_connect('scroll_event', mouse_nav.on_scroll)
 fig.canvas.mpl_connect('button_press_event', mouse_nav.on_press)
 fig.canvas.mpl_connect('button_release_event', mouse_nav.on_release)
 fig.canvas.mpl_connect('motion_notify_event', mouse_nav.on_motion)
 
-# Draw X and Y axes
-ax.axhline(0, color='black', linewidth=0.8)
-ax.axvline(0, color='black', linewidth=0.8)
+
+fig, ax = plot_2d_object(vertex, 'r')
+defineAx()
 
 
+###################### Definições de layout ######################
+left_column = [
+    [sg.Canvas(key='-CANVAS-')]
+]
 
-#
-# Show the plot
-#plt.show()
-opcao = None
-layout = set_layout(opcao)
+# Define the right column
+right_column = [
+    [sg.Text("Escolha a operação que deseja realizar"), sg.Combo(lista_operacoes), sg.Button('Ok')]
+]
+
+# Create the layout with two columns
+layout = [
+    [
+        sg.Column(left_column, element_justification='l'),  # 'l' for left justification
+        sg.Column(right_column, element_justification='l')  # 'r' for right justification
+    ],
+]
+
 window = sg.Window('Matplotlib In PySimpleGUI', layout,finalize=True)
-tkcanvas = draw_figure(window['-CANVAS-'].TKCanvas, fig)
-#teste
+draw_figure(window['-CANVAS-'].TKCanvas, fig)
+
 
 
 while True:             # Event Loop
     event, values = window.read()
     if event == sg.WIN_CLOSED or event == 'Exit':
         break
-    texto = verificaOpcao(values[1])
-    window['campo1'].update(texto[0])
-    window['campo2'].update(texto[1])
+    tranformation = values[0] 
+    print(tranformation)
+    if tranformation == "Translação":
+        tx = float(sg.popup_get_text('Insira o valor de tx'))
+        ty = float(sg.popup_get_text('Insira o valor de ty'))
+        matrix = tranlacao(tx,ty)
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    elif tranformation == "Cisalhamento em X":
+        shx = float(sg.popup_get_text('Insira o valor de shx'))
+        matrix = cisalhamentoX(shx)
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    elif tranformation == "Cisalhamento em Y":
+        shy = float(sg.popup_get_text('Insira o valor de shy'))
+        matrix = cisalhamentoY(shy)
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    elif tranformation == "Escala":
+        sx = float(sg.popup_get_text('Insira o valor de sx'))
+        sy = float(sg.popup_get_text('Insira o valor de sy'))
+        matrix = escala(sx,sy)
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    elif tranformation == "Rotação":
+        teta = float(sg.popup_get_text('Insira o valor de teta'))
+        teta = math.radians(teta)
+        matrix = rotacao(teta)
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    elif tranformation == "Reflexão em X":
+        matrix = reflexaoX()
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    elif tranformation == "Reflexão em Y":
+        matrix = reflexaoY()
+        tkcanvas.get_tk_widget().pack_forget()
+        ax.clear()
+        update(vertex, matrix)
+    else:
+        sg.popup('Nenhuma operação foi selecionada. Por favor, tente novamente.')
+        break
+
+        
 window.close()
 
+#print(texto)
 
-#teste
-
-# Create the window
-#window = sg.Window('Matplotlib In PySimpleGUI', layout,finalize=True)
-
-#tkcanvas = draw_figure(window['-CANVAS-'].TKCanvas, fig)
-#event, values = window.read()
-
-#layout = set_layout(values[1])
-
-
-
-
-#window.close()
-
-#print (values[1])	
 
 
 
